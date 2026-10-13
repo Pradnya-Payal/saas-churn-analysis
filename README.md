@@ -1,193 +1,118 @@
-# SaaS Customer Churn Analysis Project
+# SaaS Customer Churn Analysis
 
-## Overview
+**Tools:** MySQL | Excel | Power BI &nbsp;&nbsp;|&nbsp;&nbsp; **Data:** 2,000 customers (public Kaggle dataset)
 
-This project analyzes a public Kaggle dataset of SaaS (Software as a Service) customer data
-to understand why customers churn (cancel their subscription) and
-identify patterns that predict churn. The project uses SQL, Excel,
-and Power BI together, but each part also works as a standalone piece.
+Why do SaaS customers cancel, and which behaviours warn that a customer is about to leave? This project answers that question three times, in three tools. SQL finds the patterns, Excel confirms them independently with pivot tables, and Power BI turns them into an interactive dashboard and an at-risk customer list.
 
-## Business Question
+## Key Findings
 
-Why are customers churning, and which customer behaviors are linked
-to a higher chance of leaving?
+- **Overall churn rate: 36.85%** (737 of 2,000 customers).
+- **Login frequency is the strongest signal.** Customers who rarely log in churn at **85.46%**, weekly users at 42.26%, and daily users at 13.02%.
+- **Low usage is a clear danger zone.** Customers using the product 20 minutes a day or less churn at about 73% (SQL), compared with about 10% for customers using it 50+ minutes. Finer Excel buckets show churn dropping sharply after the 20-minute mark and then staying low.
+- **Customers who rarely log in are all low-usage customers.** The two signals overlap heavily, but each still matters on its own.
+- **Account age (548 vs 568 days) and support-ticket length (51 vs 42 characters) are weak predictors** of churn.
+
+## Dashboard (Power BI)
+
+![Dashboard overview](dashboard_overview.png)
+
+**Overview page:** KPI cards (total customers, churn rate, churned customers, average daily usage), churn rate by login frequency, churn rate by daily usage bucket, and a login-frequency slicer that filters every visual.
+
+![At-risk customers](at_risk_customers.png)
+
+**At-risk page:** a list of customers who are still active but use the product 20 minutes a day or less, sorted by usage. These are the customers a retention team could contact before they leave.
+
+## What's in this repository
+
+| File | What it contains |
+|---|---|
+| `churn_analysis_queries.sql` | Database setup, the data-type fix, and 8 documented SQL analyses |
+| `customer_churn_analysis.xlsx` | Pivot tables, charts, a cross-tab, an XLOOKUP customer lookup, and a Summary sheet |
+| `Churn_Project_Dashboard.pbix` | 2-page Power BI dashboard (open with Power BI Desktop) |
+| `customers_full_export.csv` | The 2,000-row table exported from MySQL |
+| `dashboard_overview.png`, `at_risk_customers.png` | Dashboard screenshots used in this README |
+
+---
 
 ## Dataset
 
-* Source: Kaggle - "SaaS Customer Churn Prediction Dataset"
-(by suhanigupta04)
-* File used: train.csv
-* Total records: 2000 customers
-* Columns: Customer\_ID, Name, Email, Account\_Age\_Days,
-Login\_Frequency, Daily\_Usage\_Mins, Last\_Support\_Ticket, Churn
+- Source: Kaggle, "SaaS Customer Churn Prediction Dataset" (by suhanigupta04), file `train.csv`
+- Records: 2,000 customers
+- Columns: Customer_ID, Name, Email, Account_Age_Days, Login_Frequency, Daily_Usage_Mins, Last_Support_Ticket, Churn
+- Names and emails are placeholder-style (example.com), so this is best treated as a practice dataset, not data from a real company.
 
-## Tools Used
+## Data Cleaning and Setup
 
-* SQL (MySQL Workbench) - data storage and analysis
-* Excel - data cleaning check, pivot tables, charts
-* Power BI - visual dashboard
+Checks done in Excel before loading into SQL:
+1. Row count confirmed: 2,000 records
+2. Blank values checked (Go To Special > Blanks): none found
+3. Duplicates checked on Customer_ID: none found
 
-## Data Cleaning Process (done in Excel before loading into SQL)
+Setup notes (MySQL):
+- Created the database `saas_churn_project` and a `customers` table matching the CSV columns.
+- Bug found: Customer_ID is a UUID (36-character text, e.g. a8b2ac22-dd31-483e-8672-592b7089138f), not a whole number. The original INT column could not hold it and broke the import. Fixed with ALTER TABLE, changing the column to VARCHAR(36). All 2,000 rows then imported successfully.
 
-1. Checked total row count - confirmed 2000 customer records
-2. Checked for blank/missing values using Go To Special > Blanks
+## Detailed SQL Findings
 
-   * Result: No blank cells found
-3. Checked for duplicate records using Remove Duplicates
-(checked against Customer\_ID column only)
+Each query is documented in `churn_analysis_queries.sql` with a question, why it matters, result and insight.
 
-   * Result: No duplicates found
-4. Conclusion: Dataset is clean, ready to load into SQL database
+1. **Overall churn rate:** 737 of 2,000 churned (36.85%).
+2. **Usage minutes vs churn:** churned customers average 16.42 mins/day, retained customers 47.68 mins/day (about 3x more). This is a correlation, not proven causation.
+3. **Login frequency vs churn rate:** Rarely 85.46%, Weekly 42.26%, Daily 13.02%.
+4. **Account age vs churn:** churned customers average 548 days, retained customers 568 days. A small gap, so account age is a weak predictor.
+5. **Usage buckets vs churn rate (CASE statement):**
+   - Low (0-20 mins/day): 72.97% churn (788 customers)
+   - Medium (21-50 mins/day): 16.22% churn (629 customers)
+   - High (50+ mins/day): 10.29% churn (583 customers)
+6. **Customers ranked by usage (RANK window function + subquery):** 48 customers tie for the worst rank at 1 min/day. A subquery was needed because window function results cannot be filtered directly with WHERE.
+7. **Support ticket length vs churn (LENGTH):** churned customers average 50.89 characters, retained customers 41.92. A small difference and a weak predictor.
+8. **Login groups above 50% churn (HAVING):** only "Rarely" crosses the threshold (288 of 337, 85.46%).
 
-## Database Setup Notes
+## Detailed Excel Findings
 
-* Created database `saas\_churn\_project` and a `customers` table matching
-the CSV columns.
-* Bug found: Customer\_ID turned out to be a UUID (36-character text,
-e.g. a8b2ac22-dd31-483e-8672-592b7089138f), not a whole number. The
-original INT column type could not hold it, which broke the import.
-Fixed by running ALTER TABLE to change the column to VARCHAR(36).
-* After the fix, all 2000 rows imported successfully.
+Built independently from the raw export (`customers_full_export` sheet), not copied from SQL.
 
-## Key Findings (SQL Analysis - COMPLETE)
+1. **Usage buckets vs churn rate** (sheet `Usage_Buckets_Chart` holds the clean pivot table and chart; a second usage-bucket sheet holds the detailed table with raw counts):
 
-1. Overall churn rate: 737/2000 customers churned (36.85%)
-2. Usage minutes vs churn:
+   | Daily usage (mins) | Churn rate | Customers |
+   |---|---|---|
+   | 0-19 | 74.02% | 766 |
+   | 20-39 | 17.22% | 395 |
+   | 40-59 | 15.90% | 522 |
+   | 60-79 | 5.98% | 117 |
+   | 80-99 | 5.77% | 104 |
+   | 100-120 | 6.25% | 96 |
 
-   * Churned customers average 16.42 mins/day
-   * Retained customers average 47.68 mins/day
-   * Retained customers use the product \~3x more than churned customers
-   * Note: correlation, not proven causation
-3. Login frequency vs churn rate:
+   Churn risk drops sharply after the 20-minute mark, then stays low. The real danger zone is 0-20 minutes a day.
 
-   * Rarely: 85.46% churn rate
-   * Weekly: 42.26% churn rate
-   * Daily: 13.02% churn rate
-   * Clear pattern: less frequent login = far higher churn risk
-4. Account age vs churn:
+2. **Login frequency vs churn rate** (sheet `Login_Freq`): Daily 13.02% (868 customers), Weekly 42.26% (795), Rarely 85.46% (337). Matches the SQL result.
 
-   * Churned customers avg: 548 days
-   * Stayed customers avg: 568 days
-   * Only a small gap - account age alone is NOT a strong predictor of churn
-   * Contrast: login frequency was a much stronger signal (13% vs 85%)
-5. Usage buckets vs churn rate (STRONGEST finding):
+3. **Login frequency x usage cross-tab** (sheet `Cross_Tab`): in the 0-19 minute band, churn rises from Daily 28.8% to Weekly 70.8% to Rarely 85.5%. Every "Rarely" customer is in this low-usage band, so the two risk factors overlap heavily, and both still carry their own signal. Cell-level customer counts are not shown, so small cells should be read with caution.
 
-   * Low (0-20 mins/day): 72.97% churn rate (788 customers)
-   * Medium (21-50 mins/day): 16.22% churn rate (629 customers)
-   * High (50+ mins/day): 10.29% churn rate (583 customers)
-   * Usage under 20 mins/day is a major danger zone
-6. Customer ranking by usage (window function - RANK()):
+4. **Customer lookup tool** (sheet `Customer_Lookup`): enter a customer ID and one XLOOKUP formula returns that customer's full record. The sheet shows 23 sample customers as a demo, and it works for any of the 2,000.
 
-   * Ranked all 2000 customers individually by Daily\_Usage\_Mins
-   * 48 customers tied for the worst rank, all at 1 min/day usage
-   * Subset of the larger "Low usage" danger zone (788 customers, Finding #5)
-   * Gives the company actual customer names to prioritize for outreach
-   * Technique note: used a subquery to filter on a window function result
-7. Support ticket length vs churn:
+The `Summary` sheet gives the findings in plain English.
 
-   * Churned customers avg: 50.89 characters
-   * Stayed customers avg: 41.92 characters
-   * Small difference - not a strong standalone predictor of churn
-8. Login frequency groups above 50% churn (HAVING clause):
+## Reconciling SQL and Excel
 
-   * Only "Rarely" crosses the 50% churn threshold (85.46%)
-   * Daily and Weekly groups stay below this threshold
-   * HAVING clause automatically isolates risky groups instead of manual comparison
+The two tools report slightly different churn rates for the lowest-usage customers (SQL 72.97%, Excel 74.02%), and the difference comes from bucket boundaries, not an error:
 
-## SQL Techniques Used
+| | Customers | Churned | Churn rate |
+|---|---|---|---|
+| SQL "Low" bucket (20 minutes or less) | 788 | 575 | 72.97% |
+| Excel first bucket (0-19 minutes) | 766 | 567 | 74.02% |
+| Difference (exactly 20 minutes) | 22 | 8 | 36% |
 
-SELECT, WHERE, GROUP BY, aggregates (COUNT, SUM, AVG), CASE statements,
-window functions (RANK), subqueries, string functions (LENGTH), HAVING
+The 22 customers who use the product for exactly 20 minutes are counted as "low" in SQL, but fall into the 20-39 bucket in Excel. The overall churn rate (36.85%) is the same in every tool.
 
 ## Limitations
 
-This dataset does not include revenue/payment or customer satisfaction
-data, so this analysis focuses on behavioral churn signals (usage, login
-frequency, support activity) rather than financial impact.
+- No revenue, payment or satisfaction data, so the analysis covers behavioural churn signals (usage, login frequency, support activity), not financial impact.
+- No signup or cancellation dates, so cohort or time-based analysis is not possible.
+- Findings show correlation, not proven causation. For example, low usage could lead to churn, or customers who have already decided to leave may use the product less first.
 
+## Techniques Used
 
-
-## Key Findings (Excel Analysis -COMPLETE)
-
-1. Usage buckets vs churn rate (independent pivot table analysis):
-
-   * See: Sheet1 (detailed pivot table with raw counts - Churn, Count,
-and Churn\_Rate\_Percent side by side, no chart),
-Sheet2 (clean pivot table + final chart used for presentation)
-   * 0-19 mins/day: 74.02% churn rate (766 customers)
-   * 20-39 mins/day: 17.22% churn rate (395 customers)
-   * 40-59 mins/day: 15.90% churn rate (522 customers)
-   * 60-79 mins/day: 5.98% churn rate (117 customers)
-   * 80-99 mins/day: 5.77% churn rate (104 customers)
-   * 100-120 mins/day: 6.25% churn rate (96 customers)
-   * Confirms SQL finding independently (SQL: 72.97% for 0-20 bucket,
-Excel: 74.02% for 0-19 bucket - small difference due to slightly
-different bucket boundaries)
-   * NEW insight from finer buckets: churn risk drops sharply right after
-the 20-minute mark, then stays low and fairly stable from 20-120
-minutes. The real danger zone is specifically 0-20 mins/day - beyond
-that, additional usage doesn't dramatically improve retention further.
-2. Login frequency vs churn rate (independent pivot table analysis):
-
-   * See: Sheet3 (pivot table + chart)
-   * Daily: 13.02% churn rate (868 customers)
-   * Weekly: 42.26% churn rate (795 customers)
-   * Rarely: 85.46% churn rate (337 customers)
-   * Confirms SQL finding independently - numbers match almost exactly
-(SQL: Daily=13.02%, Weekly=42.26%, Rarely=85.46%)
-3. Login frequency x usage buckets vs churn rate (cross-tab):
-
-   * See: Sheet5 (cross-tab pivot table)
-   * 0-19 mins/day: Daily 28.8%, Weekly 70.8%, Rarely 85.5% churn
-   * All "Rarely" customers fall in the 0-19 min band, so the two
-factors overlap heavily
-   * Both factors keep their own signal at equal usage levels
-   * Limitation: cell-level customer counts not shown, so small cells
-should be read with caution
-4. Customer lookup tool (XLOOKUP):
-
-   * See: Customer\_Lookup sheet
-   * Enter or list customer IDs and the sheet returns each customer's full
-record from the raw data using a single XLOOKUP formula
-   * Verified against the raw data for sample customers
-
-
-
-## Key Findings (Power BI Dashboard - COMPLETE)
-
-File: SaaS\_Churn\_Dashboard.pbix (2 pages)
-
-Page 1 - Overview:
-
-* KPI cards: Total Customers (2000), Churn Rate (36.85%),
-Churned Customers (737), Avg Daily Usage (36.16 mins)
-* Churn Rate by Login Frequency (Rarely 85%, Weekly 42%, Daily 13%)
-* Churn Rate by Daily Usage (20-minute buckets; the 0-19 bucket
-is the danger zone at about 74%)
-* Login Frequency slicer: clicking a group updates every visual
-
-Page 2 - At-Risk Customers:
-
-* Table of customers who are still active (not churned) but use
-the product 20 minutes/day or less, sorted from lowest usage
-* Turns the SQL ranking and usage findings into an actionable list
-the company could contact before these customers leave
-
-Notes:
-
-* All numbers match the SQL and Excel results, so the three tools
-confirm each other
-* Custom theme: dark purple glass-style panels
-
-## Project Status
-
-* \[x] Data sourced and cleaned (Excel)
-* \[x] Database and tables created (SQL)
-* \[x] Data imported into MySQL (2000 rows confirmed)
-* \[x] SQL analysis queries written (8 findings, COMPLETE)
-* \[x] Excel pivot table analysis - Completed
-
-  * Exported full raw customers table (2000 rows) from MySQL as CSV
-  * Confirmed row count matches MySQL (2000 rows + header)
-* \[x] Power BI dashboard built
-
+- **SQL:** SELECT, WHERE, GROUP BY, aggregates (COUNT, SUM, AVG), CASE statements, window functions (RANK), subqueries, string functions (LENGTH), HAVING
+- **Excel:** pivot tables, grouping, calculated fields, cross-tab, PivotCharts, XLOOKUP, absolute references
+- **Power BI:** KPI cards, bar charts, binning, slicer, filtered table, custom formatting
